@@ -88,6 +88,9 @@ class Receiver:
     def last_sync(self) -> Sync:
         return self._last_sync
 
+    def initial_sync(self) -> bool:
+        return self._last_sync.sync_id == 0
+
     def plots(self) -> Dict[str, Plot]:
         return self._plots
 
@@ -302,4 +305,12 @@ class Receiver:
         }
         if self._last_sync.time_done != 0:
             result["last_sync_time"] = self._last_sync.time_done
+        if self.initial_sync():
+            result["initial_sync"] = {
+                "plots_processed": self._current_sync.plots_processed,
+                "plots_loaded": len(self._current_sync.delta.valid.additions),
+                "plots_keys_missing": len(self._current_sync.delta.keys_missing.additions),
+                "plots_keys_invalid": len(self._current_sync.delta.invalid.additions),
+                "plots_total": self._current_sync.plots_total,
+            }
         return result
