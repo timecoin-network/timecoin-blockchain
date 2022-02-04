@@ -301,3 +301,25 @@ async def test_farmer_get_pool_state(harvester_farmer_environment, self_hostname
     for pool_dict in client_pool_state["pool_state"]:
         for key in ["points_found_24h", "points_acknowledged_24h"]:
             assert pool_dict[key][0] == list(since_24h)
+
+
+@pytest.mark.asyncio
+async def test_farmer_get_harvester_plot_endpoints(environment):
+    (
+        farmer_service,
+        farmer_rpc_api,
+        farmer_rpc_client,
+        harvester_service,
+        harvester_rpc_api,
+        harvester_rpc_client,
+    ) = environment
+
+    res = await harvester_rpc_client.get_plots()
+    plot_count = len(res["plots"])
+    assert plot_count == 20
+
+    harvester_id = harvester_service._server.node_id
+
+    await time_out_assert(30, farmer_service._api.farmer.plot_sync_receivers[harvester_id].initial_sync, False)
+    page_result = await farmer_rpc_client.get_harvester_plots(harvester_id, 1, 5)
+    assert "error" not in page_result

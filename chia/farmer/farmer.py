@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import json
 import logging
 import time
@@ -45,6 +46,7 @@ from chia.util.config import config_path_for_filename, load_config, lock_and_loa
 from chia.util.hash import std_hash
 from chia.util.ints import uint8, uint16, uint32, uint64
 from chia.util.keychain import Keychain
+from chia.util.paginator import Paginator
 from chia.wallet.derive_keys import (
     find_authentication_sk,
     find_owner_sk,
@@ -65,6 +67,13 @@ UPDATE_POOL_FARMER_INFO_INTERVAL: int = 300
 """
 HARVESTER PROTOCOL (FARMER <-> HARVESTER)
 """
+
+
+@dataclasses.dataclass
+class PlotRequestData:
+    peer_id: bytes32
+    page: int
+    page_size: int
 
 
 class Farmer:
@@ -649,6 +658,38 @@ class Farmer:
                 )
 
         return {"harvesters": harvesters}
+
+    def get_receiver(self, peer_id: bytes32) -> Receiver:
+        receiver: Optional[Receiver] = self.plot_sync_receivers.get(peer_id)
+        if receiver is None:
+            raise KeyError(f"Receiver missing for {peer_id}")
+        return receiver
+
+    def paginated_plot_request(self, source: List[Any], request: PlotRequestData) -> Dict:
+        try:
+            paginator: Paginator = Paginator(source, request.page_size)
+            return {
+                "peer_id": request.peer_id.hex(),
+                "page": request.page,
+                "page_count": paginator.page_count(),
+                "plots": paginator.get_page(request.page),
+            }
+        except Exception as e:
+            self.log.error(f"paginated_plot_request: failed with {e}")
+            return {"error": str(e)}
+
+    async def get_harvester_plots(self, request: PlotRequestData) -> Dict:
+        # TODO: Consider having a extra List[PlotInfo] in Receiver to avoid rebuilding the list for each call
+        return self.paginated_plot_request(list(self.get_receiver(request.peer_id).plots().values()), request)
+
+    async def get_harvester_plots_invalid(self, request: PlotRequestData) -> Dict:
+        return self.paginated_plot_request(self.get_receiver(request.peer_id).invalid(), request)
+
+    async def get_harvester_plots_keys_missing(self, request: PlotRequestData) -> Dict:
+        return self.paginated_plot_request(self.get_receiver(request.peer_id).keys_missing(), request)
+
+    async def get_harvester_plots_duplicates(self, request: PlotRequestData) -> Dict:
+        return self.paginated_plot_request(self.get_receiver(request.peer_id).duplicates(), request)
 
     async def _periodically_update_pool_state_task(self):
         time_slept: uint64 = uint64(0)
