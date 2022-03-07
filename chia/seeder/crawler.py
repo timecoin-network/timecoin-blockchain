@@ -178,7 +178,7 @@ class Crawler:
                         task = asyncio.create_task(self.connect_task(peer))
                         tasks.add(task)
                         if len(tasks) >= 250:
-                            await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                            await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED, timeout=30)
                         tasks = set(filter(lambda t: not t.done(), tasks))
 
                 if len(tasks) > 0:
