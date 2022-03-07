@@ -180,6 +180,9 @@ class Crawler:
                         if len(tasks) >= 250:
                             await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED, timeout=30)
                         tasks = set(filter(lambda t: not t.done(), tasks))
+                        if len(tasks) >= 250:
+                            self.log.error("Tasks still greater than 250. Resetting tasks.")
+                            tasks = set()
 
                 if len(tasks) > 0:
                     await asyncio.wait(tasks, timeout=30)
