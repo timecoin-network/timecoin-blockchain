@@ -8,6 +8,10 @@ from pathlib import Path
 multiprocessing.set_start_method("spawn")
 
 
+import logging
+logging.getLogger("aiosqlite").setLevel(logging.INFO)  # Too much logging on debug level
+
+
 # TODO: tests.setup_nodes (which is also imported by tests.util.blockchain) creates a
 #       global BlockTools at tests.setup_nodes.bt.  This results in an attempt to create
 #       the chia root directory which the build scripts symlink to a sometimes-not-there

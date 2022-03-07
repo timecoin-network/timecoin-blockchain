@@ -41,9 +41,11 @@ class WalletInterestedStore:
         rows_hex = await cursor.fetchall()
         return [bytes32(bytes.fromhex(row[0])) for row in rows_hex]
 
-    async def add_interested_coin_id(self, coin_id: bytes32, in_transaction: bool = False) -> None:
+    async def add_interested_coin_id(self, coin_id: bytes32, in_transaction: bool = False, id=None, potential_height=None) -> None:
+        if id is not None: self.log.info(f" ==== add_interested_coin_id() {id:7} A {potential_height}")
 
         if not in_transaction:
+            if id is not None: self.log.info(f" ==== add_interested_coin_id() {id:7} B {potential_height}")
             await self.db_wrapper.lock.acquire()
         try:
             cursor = await self.db_connection.execute(

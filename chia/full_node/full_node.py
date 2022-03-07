@@ -170,7 +170,7 @@ class FullNode:
         self.log.info(f"opening blockchain DB: synchronous={db_sync}")
         await self.connection.execute("pragma synchronous={}".format(db_sync))
 
-        if self.config.get("log_sqlite_cmds", False):
+        if False:#self.config.get("log_sqlite_cmds", False):
             sql_log_path = path_from_root(self.root_path, "log/sql.log")
             self.log.info(f"logging SQL commands to {sql_log_path}")
 

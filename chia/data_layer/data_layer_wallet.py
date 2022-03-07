@@ -166,14 +166,23 @@ class DataLayerWallet:
         spend: Optional[CoinSpend] = None,
         height: Optional[uint32] = None,
         in_transaction: bool = False,
+            id=None,
+            potential_height=None,
     ) -> None:
+        if id is not None: self.log.info(f" ==== track_new_launcher_id() {id:7} A {potential_height}")
         if await self.wallet_state_manager.dl_store.get_launcher(launcher_id) is not None:
+            if id is not None: self.log.info(f" ==== track_new_launcher_id() {id:7} B {potential_height}")
             self.log.info(f"Spend of launcher {launcher_id} has already been processed")
             return None
+        if id is not None: self.log.info(f" ==== track_new_launcher_id() {id:7} C {potential_height}")
         if spend is not None and spend.coin.name() == launcher_id:  # spend.coin.name() == launcher_id is a sanity check
-            await self.new_launcher_spend(spend, height, in_transaction)
+            if id is not None: self.log.info(f" ==== track_new_launcher_id() {id:7} D {potential_height}")
+            await self.new_launcher_spend(spend, height, in_transaction, id=id, potential_height=potential_height)
+            if id is not None: self.log.info(f" ==== track_new_launcher_id() {id:7} E {potential_height}")
         else:
+            if id is not None: self.log.info(f" ==== track_new_launcher_id() {id:7} F {potential_height}")
             launcher_state: CoinState = await self.get_launcher_coin_state(launcher_id)
+            if id is not None: self.log.info(f" ==== track_new_launcher_id() {id:7} G {potential_height}")
 
             data: Dict[str, Any] = {
                 "data": {
@@ -189,8 +198,10 @@ class DataLayerWallet:
                     }
                 }
             }
+            if id is not None: self.log.info(f" ==== track_new_launcher_id() {id:7} H {potential_height}")
 
             data_str = dict_to_json_str(data)
+            if id is not None: self.log.info(f" ==== track_new_launcher_id() {id:7} I {potential_height}")
             await self.wallet_state_manager.create_action(
                 name="request_puzzle_solution",
                 wallet_id=self.id(),
@@ -200,6 +211,7 @@ class DataLayerWallet:
                 data=data_str,
                 in_transaction=False,  # We should never be fetching this during sync, it will provide us with the spend
             )
+        if id is not None: self.log.info(f" ==== track_new_launcher_id() {id:7} J {potential_height}")
 
     async def new_launcher_spend_response(self, response: PuzzleSolutionResponse, action_id: int) -> None:
         action = await self.wallet_state_manager.action_store.get_wallet_action(action_id)
@@ -220,20 +232,29 @@ class DataLayerWallet:
         launcher_spend: CoinSpend,
         height: Optional[uint32] = None,
         in_transaction: bool = False,
+            id=None,
+            potential_height=None,
     ) -> None:
+        if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} A {potential_height}")
         launcher_id: bytes32 = launcher_spend.coin.name()
         if height is None:
+            if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} B {potential_height}")
             height = (await self.get_launcher_coin_state(launcher_id)).spent_height
+            if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} C {potential_height}")
             assert height is not None
+        if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} D {potential_height}")
         full_puzhash, amount, root, inner_puzhash = launch_solution_to_singleton_info(
             launcher_spend.solution.to_program()
         )
         new_singleton = Coin(launcher_id, full_puzhash, amount)
 
+        if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} E {potential_height}")
         singleton_record: Optional[SingletonRecord] = await self.wallet_state_manager.dl_store.get_latest_singleton(
             launcher_id
         )
+        if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} F {potential_height}")
         if singleton_record is not None:
+            if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} G {potential_height}")
             if (  # This is an unconfirmed singleton that we know about
                 singleton_record.coin_id == new_singleton.name() and not singleton_record.confirmed
             ):
@@ -243,6 +264,7 @@ class DataLayerWallet:
                 self.log.info(f"Spend of launcher {launcher_id} has already been processed")
                 return None
         else:
+            if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} H {potential_height}")
             timestamp = await self.wallet_state_manager.wallet_node.get_timestamp_for_height(height)
             await self.wallet_state_manager.dl_store.add_singleton_record(
                 SingletonRecord(
@@ -263,9 +285,13 @@ class DataLayerWallet:
                 in_transaction,
             )
 
+        if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} I {potential_height}")
         await self.wallet_state_manager.dl_store.add_launcher(launcher_spend.coin, in_transaction)
+        if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} J {potential_height}")
         await self.wallet_state_manager.add_interested_puzzle_hashes([launcher_id], [self.id()], in_transaction)
-        await self.wallet_state_manager.add_interested_coin_ids([new_singleton.name()])
+        if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} K {potential_height}")
+        await self.wallet_state_manager.add_interested_coin_ids([new_singleton.name()], in_transaction=in_transaction, id=id, potential_height=potential_height)
+        if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} L {potential_height}")
         await self.wallet_state_manager.coin_store.add_coin_record(
             WalletCoinRecord(
                 new_singleton,
@@ -277,6 +303,7 @@ class DataLayerWallet:
                 self.id(),
             )
         )
+        if id is not None: self.log.info(f" ==== new_launcher_spend() {id:7} M {potential_height}")
 
     ################
     # TRANSACTIONS #

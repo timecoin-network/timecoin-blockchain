@@ -28,13 +28,29 @@ from tests.wallet.rl_wallet.test_rl_rpc import is_transaction_confirmed
 pytestmark = pytest.mark.data_layer
 nodes = Tuple[WalletNode, FullNodeSimulator]
 
+from chia.util.chia_logging import initialize_logging
+import logging
+log = logging.getLogger(__name__)
+
 
 async def init_data_layer(root_path: Path, wallet_rpc_port: int) -> AsyncIterator[DataLayer]:
+    log.info(f" ==== checkpoint D 1")
     config = bt.config
+    log.info(f" ==== checkpoint D 2")
     kwargs = service_kwargs_for_data_layer(root_path, config, wallet_rpc_port=uint16(wallet_rpc_port))
+    log.info(f" ==== checkpoint D 3")
     kwargs.update(parse_cli_args=False)
-    service = Service(**kwargs)
+    try:
+        log.info(f" ==== checkpoint D 4")
+        log.info(f" ==== {kwargs}")
+        print(f" ==== PRINT BEFORE")
+        service = Service(**kwargs, handle_signals=False)
+    finally:
+        print(f" ==== PRINT AFTER")
+        log.info(f" ==== checkpoint D 4 a")
+    log.info(f" ==== checkpoint D 5")
     await service.start()
+    log.info(f" ==== checkpoint D 6")
     yield service._api.data_layer
     service.stop()
     await service.wait_closed()
@@ -73,58 +89,76 @@ async def one_wallet_node_and_rpc() -> AsyncIterator[nodes]:
 
 @pytest.mark.asyncio
 async def test_create_insert_get(one_wallet_node_and_rpc: nodes) -> None:
+    log_config = bt.config["logging"]
+    log_config["log_level"] = "INFO"
+    initialize_logging(service_name="test", logging_config=log_config, root_path=bt.root_path)
+    log.info(f" ==== checkpoint A")
     root_path = bt.root_path
     wallet_node, full_node_api = one_wallet_node_and_rpc
     num_blocks = 15
     assert wallet_node.server
     await wallet_node.server.start_client(PeerInfo("localhost", uint16(full_node_api.server._port)), None)
+    log.info(f" ==== checkpoint B")
     assert wallet_node.wallet_state_manager is not None
     ph = await wallet_node.wallet_state_manager.main_wallet.get_new_puzzlehash()
     for i in range(0, num_blocks):
         await full_node_api.farm_new_transaction_block(FarmNewBlockProtocol(ph))
         await asyncio.sleep(0.5)
+    log.info(f" ==== checkpoint C")
     funds = sum(
         [calculate_pool_reward(uint32(i)) + calculate_base_farmer_reward(uint32(i)) for i in range(1, num_blocks)]
     )
     await time_out_assert(15, wallet_node.wallet_state_manager.main_wallet.get_confirmed_balance, funds)
     wallet_rpc_api = WalletRpcApi(wallet_node)
-    async for data_layer in init_data_layer(root_path, wallet_rpc_port=wallet_node.config["port"]):
-        data_rpc_api = DataLayerRpcApi(data_layer)
-        key = b"a"
-        value = b"\x00\x01"
-        changelist: List[Dict[str, str]] = [{"action": "insert", "key": key.hex(), "value": value.hex()}]
-        res = await data_rpc_api.create_data_store({})
-        assert res is not None
-        store_id = bytes32(hexstr_to_bytes(res["id"]))
-        for i in range(0, num_blocks):
-            await full_node_api.farm_new_transaction_block(FarmNewBlockProtocol(ph))
-            await asyncio.sleep(0.2)
-        res = await data_rpc_api.batch_update({"id": store_id.hex(), "changelist": changelist})
-        update_tx_rec0 = res["tx_id"]
-        await asyncio.sleep(1)
-        for i in range(0, num_blocks):
-            await full_node_api.farm_new_transaction_block(FarmNewBlockProtocol(ph))
-            await asyncio.sleep(0.2)
-        await time_out_assert(15, is_transaction_confirmed, True, "this is unused", wallet_rpc_api, update_tx_rec0)
-        res = await data_rpc_api.get_value({"id": store_id.hex(), "key": key.hex()})
-        wallet_root = await data_rpc_api.get_root({"id": store_id.hex()})
-        local_root = await data_rpc_api.get_local_root({"id": store_id.hex()})
-        assert wallet_root["hash"] == local_root["hash"]
-        assert hexstr_to_bytes(res["value"]) == value
-        changelist = [{"action": "delete", "key": key.hex()}]
-        res = await data_rpc_api.batch_update({"id": store_id.hex(), "changelist": changelist})
-        update_tx_rec1 = res["tx_id"]
-        await asyncio.sleep(1)
-        for i in range(0, num_blocks):
+    try:
+        log.info(f" ==== checkpoint D")
+        async for data_layer in init_data_layer(root_path, wallet_rpc_port=wallet_node.config["port"]):
+            log.info(f" ==== checkpoint E")
+            data_rpc_api = DataLayerRpcApi(data_layer)
+            key = b"a"
+            value = b"\x00\x01"
+            changelist: List[Dict[str, str]] = [{"action": "insert", "key": key.hex(), "value": value.hex()}]
+            log.info(f" ==== checkpoint F")
+            res = await data_rpc_api.create_data_store({})
+            log.info(f" ==== checkpoint G")
+            assert res is not None
+            store_id = bytes32(hexstr_to_bytes(res["id"]))
+            for i in range(0, num_blocks):
+                await full_node_api.farm_new_transaction_block(FarmNewBlockProtocol(ph))
+                await asyncio.sleep(0.2)
+            log.info(f" ==== checkpoint H")
+            res = await data_rpc_api.batch_update({"id": store_id.hex(), "changelist": changelist})
+            log.info(f" ==== checkpoint I")
+            update_tx_rec0 = res["tx_id"]
+            log.info(f" ==== checkpoint J")
             await asyncio.sleep(1)
-            await full_node_api.farm_new_transaction_block(FarmNewBlockProtocol(ph))
-        await time_out_assert(15, is_transaction_confirmed, True, "this is unused", wallet_rpc_api, update_tx_rec1)
-        with pytest.raises(Exception):
-            val = await data_rpc_api.get_value({"id": store_id.hex(), "key": key.hex()})
-        wallet_root = await data_rpc_api.get_root({"id": store_id.hex()})
-        local_root = await data_rpc_api.get_local_root({"id": store_id.hex()})
-        assert wallet_root["hash"] == bytes32([0] * 32)
-        assert local_root["hash"] == None
+            log.info(f" ==== checkpoint K")
+            for i in range(0, num_blocks):
+                await full_node_api.farm_new_transaction_block(FarmNewBlockProtocol(ph))
+                await asyncio.sleep(0.2)
+            log.info(f" ==== checkpoint L")
+            await time_out_assert(15, is_transaction_confirmed, True, "this is unused", wallet_rpc_api, update_tx_rec0)
+            res = await data_rpc_api.get_value({"id": store_id.hex(), "key": key.hex()})
+            wallet_root = await data_rpc_api.get_root({"id": store_id.hex()})
+            local_root = await data_rpc_api.get_local_root({"id": store_id.hex()})
+            assert wallet_root["hash"] == local_root["hash"]
+            assert hexstr_to_bytes(res["value"]) == value
+            changelist = [{"action": "delete", "key": key.hex()}]
+            res = await data_rpc_api.batch_update({"id": store_id.hex(), "changelist": changelist})
+            update_tx_rec1 = res["tx_id"]
+            await asyncio.sleep(1)
+            for i in range(0, num_blocks):
+                await asyncio.sleep(1)
+                await full_node_api.farm_new_transaction_block(FarmNewBlockProtocol(ph))
+            await time_out_assert(15, is_transaction_confirmed, True, "this is unused", wallet_rpc_api, update_tx_rec1)
+            with pytest.raises(Exception):
+                val = await data_rpc_api.get_value({"id": store_id.hex(), "key": key.hex()})
+            wallet_root = await data_rpc_api.get_root({"id": store_id.hex()})
+            local_root = await data_rpc_api.get_local_root({"id": store_id.hex()})
+            assert wallet_root["hash"] == bytes32([0] * 32)
+            assert local_root["hash"] == None
+    finally:
+        log.info(f" ==== checkpoint ZZZZ")
 
 
 @pytest.mark.asyncio
