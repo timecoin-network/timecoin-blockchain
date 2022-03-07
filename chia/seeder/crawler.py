@@ -83,30 +83,33 @@ class Crawler:
 
     async def connect_task(self, peer):
         async def peer_action(peer: ws.WSChiaConnection):
-
-            peer_info = peer.get_peer_info()
-            version = peer.get_version()
-            if peer_info is not None and version is not None:
-                self.version_cache.append((peer_info.host, version))
-            # Ask peer for peers
-            response = await peer.request_peers(full_node_protocol.RequestPeers(), timeout=3)
-            # Add peers to DB
-            if isinstance(response, full_node_protocol.RespondPeers):
-                self.peers_retrieved.append(response)
-            peer_info = peer.get_peer_info()
-            tries = 0
-            got_peak = False
-            while tries < 25:
-                tries += 1
-                if peer_info is None:
-                    break
-                if peer_info in self.with_peak:
-                    got_peak = True
-                    break
-                await asyncio.sleep(0.1)
-            if not got_peak and peer_info is not None and self.crawl_store is not None:
-                await self.crawl_store.peer_connected_hostname(peer_info.host, False)
-            await peer.close()
+            try:
+                peer_info = peer.get_peer_info()
+                version = peer.get_version()
+                if peer_info is not None and version is not None:
+                    self.version_cache.append((peer_info.host, version))
+                # Ask peer for peers
+                response = await peer.request_peers(full_node_protocol.RequestPeers(), timeout=3)
+                # Add peers to DB
+                if isinstance(response, full_node_protocol.RespondPeers):
+                    self.peers_retrieved.append(response)
+                peer_info = peer.get_peer_info()
+                tries = 0
+                got_peak = False
+                while tries < 25:
+                    tries += 1
+                    if peer_info is None:
+                        break
+                    if peer_info in self.with_peak:
+                        got_peak = True
+                        break
+                    await asyncio.sleep(0.1)
+                if not got_peak and peer_info is not None and self.crawl_store is not None:
+                    await self.crawl_store.peer_connected_hostname(peer_info.host, False)
+                await peer.close()
+            except Exception as e:
+                self.log.error(f"Peer action exception: {e}")
+                await self.crawl_store.peer_failed_to_connect(peer)
 
         try:
             connected = await self.create_client(PeerInfo(peer.ip_address, peer.port), peer_action)
