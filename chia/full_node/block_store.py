@@ -329,7 +329,12 @@ class BlockStore:
                 return b.transactions_generator
 
     async def get_generators_at(self, heights: List[uint32]) -> List[SerializedProgram]:
+        log.error(f" ==== entering get_generators_at()")
         assert self.db_wrapper.db_version == 2
+
+        log.error(f" ==== len(heights)={len(heights)}")
+        log.error(f" ==== min(heights)={min(heights)}")
+        log.error(f" ==== max(heights)={max(heights)}")
 
         if len(heights) == 0:
             return []
@@ -357,6 +362,12 @@ class BlockStore:
                     raise ValueError(Err.GENERATOR_REF_HAS_NO_GENERATOR)
                 generators[uint32(row[1])] = gen
 
+        missing_heights = sorted(set(heights) - set(generators.keys()))
+        log.error(f" ==== len(generators)={len(generators)}")
+        log.error(f" ==== len(missing_heights)={len(missing_heights)}")
+        log.error(f" ==== missing_heights={missing_heights}")
+
+        log.error(f" ==== returning from get_generators_at()")
         return [generators[h] for h in heights]
 
     async def get_block_records_by_hash(self, header_hashes: List[bytes32]):
