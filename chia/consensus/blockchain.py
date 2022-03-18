@@ -393,6 +393,8 @@ class Blockchain(BlockchainInterface):
                     break
                 curr = fetched_block_record.prev_hash
 
+            await self.block_store.set_in_chain([(t[1].header_hash,) for t in blocks_to_add])
+
             records_to_add = []
             for fetched_full_block, fetched_block_record in reversed(blocks_to_add):
                 records_to_add.append(fetched_block_record)
@@ -437,8 +439,6 @@ class Blockchain(BlockchainInterface):
                             if key not in hint_coin_state:
                                 hint_coin_state[key] = {}
                             hint_coin_state[key][coin_id] = lastest_coin_state[coin_id]
-
-            await self.block_store.set_in_chain([(br.header_hash,) for br in records_to_add])
 
             # Changes the peak to be the new peak
             await self.block_store.set_peak(block_record.header_hash)
