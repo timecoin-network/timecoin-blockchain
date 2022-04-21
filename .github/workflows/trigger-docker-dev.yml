@@ -5,8 +5,6 @@ on:
     branches:
       - 'long_lived/**'
   pull_request:
-    branches:
-      - '**'
     branches-ignore:
       - 'long_lived/**'
 
